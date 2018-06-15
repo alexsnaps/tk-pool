@@ -7,8 +7,9 @@ use std::time::Duration;
 
 use abstract_ns::Address;
 use futures::{Future, Stream, Sink};
-use tokio_core::reactor::Handle;
+use tokio::runtime::TaskExecutor;
 use void::Void;
+use std;
 
 use error_log::{ErrorLog, WarnLogger};
 use connect::Connect;
@@ -55,7 +56,8 @@ pub(crate) mod private {
     use metrics::Collect;
     use error_log::ErrorLog;
     use abstract_ns::Address;
-    use tokio_core::reactor::Handle;
+    use tokio::runtime::TaskExecutor;
+    use std;
 
     pub struct Done;
 
@@ -75,16 +77,16 @@ pub(crate) mod private {
             SinkError=Done,
         >;
         fn construct(self,
-            h: &Handle, address: A, connector: C, errors: E, metrics: M)
+            h: &TaskExecutor, address: A, connector: C, errors: E, metrics: M)
             -> Self::Sink;
     }
 
     pub trait NewQueue<I, M> {
         type Pool;
-        fn spawn_on<S, E>(self, pool: S, e: E, metrics: M, handle: &Handle)
+        fn spawn_on<S, E>(self, pool: S, e: E, metrics: M, handle: &TaskExecutor)
             -> Self::Pool
-            where S: Sink<SinkItem=I, SinkError=Done> + 'static,
-                  E: ErrorLog + 'static,
+            where S: Sink<SinkItem=I, SinkError=Done> + std::marker::Send + 'static,
+                  E: ErrorLog + std::marker::Send + 'static,
                   M: Collect + 'static;
     }
 
@@ -150,7 +152,7 @@ impl<C> PartialConfig<C> {
 
 impl<C, A, X, Q, E, M> PoolConfig<C, A, X, Q, E, M> {
     /// Spawn a connection pool on the main loop specified by handle
-    pub fn spawn_on(self, h: &Handle)
+    pub fn spawn_on(self, h: &TaskExecutor)
         -> <Q as NewQueue<
                 <<<C as Connect>::Future as Future>::Item as Sink>::SinkItem,
                 <M as NewMetrics>::Collect,
@@ -161,12 +163,12 @@ impl<C, A, X, Q, E, M> PoolConfig<C, A, X, Q, E, M> {
               M: NewMetrics,
               M::Collect: 'static,
               X: NewMux<A, C, E::ErrorLog, M::Collect>,
-              <X as private::NewMux<A, C, E::ErrorLog, M::Collect>>::Sink: 'static,
+              <X as private::NewMux<A, C, E::ErrorLog, M::Collect>>::Sink: 'static + std::marker::Send,
               E: NewErrorLog<
                 <<C as Connect>::Future as Future>::Error,
                 <<<C as Connect>::Future as Future>::Item as Sink>::SinkError,
-              >,
-              E::ErrorLog: Clone + 'static,
+              > + std::marker::Send,
+              E::ErrorLog: Clone + std::marker::Send + 'static,
               Q: NewQueue<
                 <<<C as Connect>::Future as Future>::Item as Sink>::SinkItem,
                 <M as NewMetrics>::Collect,

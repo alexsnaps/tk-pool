@@ -4,14 +4,15 @@ use std::net::SocketAddr;
 use std::time::Instant;
 
 use futures::{Future, Async};
-use tokio_core::reactor::{Handle, Timeout};
+use tokio::runtime::TaskExecutor;
+use tokio::timer::Delay;
 
 
 pub(crate) struct Blacklist {
     addrs: HashSet<SocketAddr>,
     heap: BinaryHeap<Pair>,
-    timeout: Option<Timeout>,
-    handle: Handle,
+    timeout: Option<Delay>,
+    handle: TaskExecutor,
 }
 
 #[derive(Eq)]
@@ -36,7 +37,7 @@ impl PartialEq for Pair {
 }
 
 impl Blacklist {
-    pub fn new(h: &Handle) -> Blacklist {
+    pub fn new(h: &TaskExecutor) -> Blacklist {
         Blacklist {
             addrs: HashSet::new(),
             heap: BinaryHeap::new(),
@@ -73,8 +74,7 @@ impl Blacklist {
                             self.timeout = None;
                         }
                     }
-                    let mut timer = Timeout::new_at(time, &self.handle)
-                        .expect("timeout never fails");
+                    let mut timer = Delay::new(time);
                     match timer.poll().expect("timeout never fails") {
                         Async::Ready(()) => continue,
                         Async::NotReady => {

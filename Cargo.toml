@@ -12,12 +12,12 @@ version = "0.5.3"
 authors = ["paul@colomiets.name"]
 
 [dependencies]
-futures = "0.1.10"
-abstract-ns = "0.4.0"
-tokio-core = "0.1.1"
-log = "0.4.1"
-rand = "0.4.2"
-void = "1.0.2"
+futures = "0.1"
+abstract-ns = "0.4"
+tokio = "0.1"
+log = "0.4"
+rand = "0.4"
+void = "1.0"
 
 [dev-dependencies]
 argparse = "0.2.1"

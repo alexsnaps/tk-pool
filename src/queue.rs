@@ -5,7 +5,8 @@ use futures::sync::mpsc::{self, channel, Sender};
 use futures::sink::Sink;
 use futures::stream::Fuse;
 use futures::future::Future;
-use tokio_core::reactor::Handle;
+use tokio::runtime::TaskExecutor;
+use std;
 
 use metrics::Collect;
 use error_log::{ErrorLog, ShutdownReason};
@@ -34,7 +35,7 @@ pub struct QueueError<V>(V);
 #[derive(Debug)]
 #[must_use = "futures do nothing unless polled"]
 struct ForwardFuture<S, M, E>
-    where S: Sink
+    where S: Sink, M: std::marker::Send, E: std::marker::Send,
 {
      receiver: Fuse<mpsc::Receiver<S::SinkItem>>,
      buffer: Option<S::SinkItem>,
@@ -43,24 +44,24 @@ struct ForwardFuture<S, M, E>
      sink: S,
 }
 
-impl<I: 'static, M> private::NewQueue<I, M> for DefaultQueue {
+impl<I: 'static + std::marker::Send, M> private::NewQueue<I, M> for DefaultQueue {
     type Pool = Pool<I, M>;
-    fn spawn_on<S, E>(self, pool: S, err: E, metrics: M, handle: &Handle)
+    fn spawn_on<S, E>(self, pool: S, err: E, metrics: M, handle: &TaskExecutor)
         -> Self::Pool
-        where S: Sink<SinkItem=I, SinkError=private::Done> + 'static,
-              E: ErrorLog + 'static,
+        where S: Sink<SinkItem=I, SinkError=private::Done> + std::marker::Send + 'static,
+              E: ErrorLog + std::marker::Send + 'static,
               M: Collect + 'static,
     {
         Queue(100).spawn_on(pool, err, metrics, handle)
     }
 }
 
-impl<I: 'static, M> private::NewQueue<I, M> for Queue {
+impl<I: 'static + std::marker::Send, M> private::NewQueue<I, M> for Queue {
     type Pool = Pool<I, M>;
-    fn spawn_on<S, E>(self, pool: S, e: E, metrics: M, handle: &Handle)
+    fn spawn_on<S, E>(self, pool: S, e: E, metrics: M, handle: &TaskExecutor)
         -> Self::Pool
-        where S: Sink<SinkItem=I, SinkError=private::Done> + 'static,
-              E: ErrorLog + 'static,
+        where S: Sink<SinkItem=I, SinkError=private::Done> + std::marker::Send + 'static,
+              E: ErrorLog + std::marker::Send + 'static,
               M: Collect + 'static,
     {
         // one item is buffered ForwardFuture
@@ -94,9 +95,9 @@ impl<V, M: Clone> Clone for Pool<V, M> {
 }
 
 impl<S, M, E> ForwardFuture<S, M, E>
-    where S: Sink<SinkError=private::Done>,
+    where S: Sink<SinkError=private::Done> + Send,
           M: Collect,
-          E: ErrorLog,
+          E: ErrorLog + std::marker::Send,
 {
     fn poll_forever(&mut self) -> Async<()> {
         if let Some(item) = self.buffer.take() {
@@ -158,9 +159,9 @@ impl<S, M, E> ForwardFuture<S, M, E>
 }
 
 impl<S, M, E> Future for ForwardFuture<S, M, E>
-    where S: Sink<SinkError=private::Done>,
+    where S: Sink<SinkError=private::Done>  + std::marker::Send,
           M: Collect,
-          E: ErrorLog,
+          E: ErrorLog + std::marker::Send,
 {
     type Item = ();
     type Error = ();  // Really Void

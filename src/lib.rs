@@ -32,7 +32,7 @@
 extern crate abstract_ns;
 extern crate futures;
 extern crate rand;
-extern crate tokio_core;
+extern crate tokio;
 extern crate void;
 
 mod connect;

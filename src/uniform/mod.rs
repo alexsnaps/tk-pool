@@ -22,7 +22,7 @@ use abstract_ns::Address;
 use futures::{Future, Async, Sink, AsyncSink, Stream};
 use futures::stream::FuturesUnordered;
 use rand::{thread_rng, Rng};
-use tokio_core::reactor::Handle;
+use tokio::runtime::TaskExecutor;
 use void::{Void, unreachable};
 
 use config::{NewMux, private};
@@ -119,7 +119,7 @@ impl<A, C, E, M> private::NewMux<A, C, E, M> for LazyUniform
 {
     type Sink = Lazy<A, C, E, M>;
     fn construct(self,
-        h: &Handle, address: A, connector: C, errors: E, metrics: M)
+        h: &TaskExecutor, address: A, connector: C, errors: E, metrics: M)
         -> Lazy<A, C, E, M>
     {
         let reconn_ms = self.reconnect_timeout.as_secs() * 1000 +
